@@ -1,3 +1,4 @@
+{ // bloc isolé : aucune variable ne fuit vers les autres cartes
 /*
  * Hot Water Tank Card (FR)
  * Carte Home Assistant pour ballon d'eau chaude (ECS) : ballon animé avec charge thermique et températures
@@ -5,11 +6,42 @@
  * Style verre, thème clair/sombre automatique, éditeur visuel.
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
+
+/* === NUANCE COMMUNE v2 (cartes Johan854) ===
+ * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
+ * nuance "theme" (par défaut) : suit la variable carte-nuance du thème Home Assistant ;
+ * si elle n'existe pas, la carte garde ses couleurs d'origine. Intensité : 0 = neutre, 1 = normal, 2 = très coloré. */
+const GV_NUANCES = [["braise", "Braise (rouge)", "#e0524f"], ["ocean", "Océan (bleu)", "#2f8fd8"], ["lagon", "Lagon (turquoise)", "#1fb5a8"], ["foret", "Forêt (vert)", "#3fae5a"], ["lavande", "Lavande (violet)", "#8a63d8"], ["framboise", "Framboise (rose)", "#e05597"], ["ambre", "Ambre (orange)", "#e8902c"], ["ardoise", "Ardoise (neutre)", "#7d8595"]];
+const GV_DEFAULTS = { nuance: "theme", intensite: 1 };
+const gvAccent = (c) => {
+  const p = c && c.nuance_perso;
+  if (c && c.nuance === "perso") {
+    if (Array.isArray(p) && p.length === 3) return "#" + p.map((v) => Math.max(0, Math.min(255, Math.round(+v || 0))).toString(16).padStart(2, "0")).join("");
+    if (typeof p === "string" && /^#?[0-9a-f]{6}$/i.test(p.trim())) return "#" + p.trim().replace("#", "");
+  }
+  const n = GV_NUANCES.find((x) => x[0] === (c && c.nuance));
+  return n ? n[2] : "var(--carte-nuance)";
+};
+/* Variables posées sur <ha-card> : --g-bg-x (fond dégradé teinté) et --acc-ui-x (couleur d'accent).
+ * Sans nuance (thème sans carte-nuance), elles sont invalides : chaque carte retombe alors sur ses couleurs d'origine. */
+const gvStyle = (c, dark) => {
+  const i = Number(c && c.intensite), ai = Number.isFinite(i) ? Math.max(0, Math.min(2, i)) : 1;
+  const m = (pct, base) => `color-mix(in srgb,var(--acc-ui) ${+(pct * ai).toFixed(1)}%,${base})`;
+  const bg = dark ? `linear-gradient(160deg,${m(5, "#1b1e32")} 0%,${m(11, "#1f1b2c")} 55%,${m(22, "#1c1620")} 100%)`
+    : `linear-gradient(160deg,${m(2, "#f8f9fd")} 0%,${m(5, "#eef1f8")} 55%,${m(11, "#f8f8fa")} 100%)`;
+  return `--acc-ui:${gvAccent(c)};--g-bg-x:${bg};--acc-ui-x:color-mix(in srgb,var(--acc-ui) ${dark ? "80%,#fff" : "82%,#000"})`;
+};
+const GV_FIELDS = [
+  { name: "nuance", selector: { select: { mode: "dropdown", options: [{ value: "theme", label: "Selon le thème (couleurs d'origine)" }, ...GV_NUANCES.map((n) => ({ value: n[0], label: n[1] })), { value: "perso", label: "Personnalisée" }] } } },
+  { name: "nuance_perso", selector: { color_rgb: {} } },
+  { name: "intensite", selector: { number: { min: 0, max: 2, step: 0.1, mode: "slider" } } }];
+const GV_LABELS = { nuance: "Nuance de couleur", nuance_perso: "Couleur personnalisée (nuance « Personnalisée »)", intensite: "Intensité de la nuance" };
+/* === FIN NUANCE COMMUNE === */
 
 const DEFAULTS = {
   title: "Ballon ECS",
-  theme: "auto", // auto | light | dark
+  theme: "auto", nuance: "theme", intensite: 1, // auto | light | dark
   // Ballon
   charge_entity: "", // charge thermique (%)
   energy_entity: "", // énergie stockée (kWh)
@@ -256,17 +288,17 @@ class HotWaterCard extends HTMLElement {
       <style>
         * { box-sizing:border-box; }
         ha-card.dark {
-          --tk-text:#f4f6fb; --tk-muted:#a9afc0; --tk-bg:linear-gradient(160deg,#1b1e32 0%,#241a2a 55%,#2d1519 100%);
+          --tk-text:#f4f6fb; --tk-muted:#a9afc0; --tk-bg:var(--g-bg-x,linear-gradient(160deg,#1b1e32 0%,#241a2a 55%,#2d1519 100%));
           --tk-border:rgba(255,255,255,.14); --tk-shadow:0 .6em 2em rgba(0,0,0,.35);
           --tk-glass:rgba(255,255,255,.07); --tk-glass-b:rgba(255,255,255,.13); --tk-fillc:rgba(255,255,255,.09); --tk-fill-b:rgba(255,255,255,.16);
-          --tk-ok:#3ddc84; --tk-warn:#ffb86b; --tk-err:#ff5a5f; --tk-off:#8a8f9c; --tk-acc:#4fc3f7; --tk-sun:#ffd166;
+          --tk-ok:#3ddc84; --tk-warn:#ffb86b; --tk-err:#ff5a5f; --tk-off:#8a8f9c; --tk-acc:var(--acc-ui-x,#4fc3f7); --tk-sun:#ffd166;
           --tk-line:#8a93a8; --tk-empty:rgba(255,255,255,.06);
         }
         ha-card.light {
-          --tk-text:#1c2030; --tk-muted:#5d6477; --tk-bg:linear-gradient(160deg,#f8f9fd 0%,#eef1f8 55%,#f8eff0 100%);
+          --tk-text:#1c2030; --tk-muted:#5d6477; --tk-bg:var(--g-bg-x,linear-gradient(160deg,#f8f9fd 0%,#eef1f8 55%,#f8eff0 100%));
           --tk-border:rgba(20,24,40,.12); --tk-shadow:0 .4em 1.4em rgba(20,24,40,.12);
           --tk-glass:rgba(255,255,255,.7); --tk-glass-b:rgba(20,24,40,.1); --tk-fillc:rgba(20,24,40,.06); --tk-fill-b:rgba(20,24,40,.14);
-          --tk-ok:#1a9d55; --tk-warn:#c77a14; --tk-err:#d32f35; --tk-off:#8a8f9c; --tk-acc:#0f8fc4; --tk-sun:#d99a00;
+          --tk-ok:#1a9d55; --tk-warn:#c77a14; --tk-err:#d32f35; --tk-off:#8a8f9c; --tk-acc:var(--acc-ui-x,#0f8fc4); --tk-sun:#d99a00;
           --tk-line:#8d95a8; --tk-empty:rgba(20,24,40,.05);
         }
         ha-card { --tk-fill:var(--tk-${tone}); display:flex; flex-direction:column; gap:14px; padding:16px; overflow:hidden; color:var(--tk-text);
@@ -314,7 +346,7 @@ class HotWaterCard extends HTMLElement {
         .tg.on { border-color:var(--tk-sun); } .tg.on ha-icon { color:var(--tk-sun); } .tg.na { opacity:.45; cursor:default; }
         @media (prefers-reduced-motion: reduce) { .wave, .spin, .elem { animation:none; } }
       </style>
-      <ha-card class="${dark ? "dark" : "light"}">
+      <ha-card class="${dark ? "dark" : "light"}" style="${gvStyle(this._config, dark)}">
         <div class="head"><b><ha-icon icon="mdi:water-boiler"></ha-icon>${esc(c.title)}</b><span class="badge">${esc(stateTxt)}</span></div>
         <div class="panel">
           <div>${this._tank(charge, tone)}</div>
@@ -345,7 +377,7 @@ class HotWaterCard extends HTMLElement {
 }
 
 /* ---------- Éditeur visuel ---------- */
-const LABELS = {
+const LABELS = { ...GV_LABELS,
   title: "Titre", theme: "Thème",
   charge_entity: "Charge thermique (%)", energy_entity: "Énergie stockée (kWh)", max_energy: "Énergie de référence à 100 % (kWh, peut être dépassée ; 0 = sans barre)",
   top_entity: "Température haut", avg_entity: "Température moyenne", bottom_entity: "Température bas",
@@ -361,7 +393,7 @@ const num = (name, min = 0, max = 100, step = 1) => ({ name, selector: { number:
 const MAIN_SCHEMA = [
   { name: "title", selector: { text: {} } },
   { name: "theme", selector: { select: { mode: "dropdown", options: [
-    { value: "auto", label: "Automatique (thème de Home Assistant)" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" } ] } } },
+    { value: "auto", label: "Automatique (thème de Home Assistant)" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" } ] } } }, ...GV_FIELDS,
   { type: "expandable", title: "Ballon", name: "", schema: [
     ent("charge_entity", "sensor"), ent("energy_entity", "sensor"), num("max_energy", 0, 100, 0.1),
     ent("top_entity", "sensor"), ent("avg_entity", "sensor"), ent("bottom_entity", "sensor"),
@@ -480,3 +512,4 @@ console.info(
   "color:#fff;background:#e5533d;font-weight:700;border-radius:3px 0 0 3px;padding:2px 4px",
   "color:#e5533d;background:#fff;font-weight:700;border-radius:0 3px 3px 0;padding:2px 4px"
 );
+}
