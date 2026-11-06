@@ -80,9 +80,9 @@ tank_image: /local/ballon.png          # ballon : une jauge s'affiche dedans
 hp_image_on: /local/pac_marche.webp    # groupe extérieur en marche (ventilateur animé)
 hp_image_off: /local/pac_arret.png     # facultatif : la PAC reste affichée à l'arrêt
 temp_min: 20                           # jauge bleue
-temp_max: 60                           # jauge rouge
+temp_max: 58                           # jauge rouge
 ```
 
-- La hauteur de la jauge suit la charge (`charge_entity`), sa couleur suit la température de l'eau : bleu en bas de plage, rouge en haut, avec un dégradé de la sonde du bas vers celle du haut (stratification).
+- La jauge est toujours pleine : sa couleur montre la température de l'eau à chaque hauteur (sonde du bas, moyenne, sonde du haut), du bleu (`temp_min`) au rouge (`temp_max`, 58 °C par défaut). On voit ainsi la stratification : en mode PAC le haut est plus chaud que le bas, avec le solaire le bas chauffe en premier.
 - Le groupe extérieur apparaît quand la PAC dépasse `hp_threshold` (W). Sans `hp_image_off`, il est masqué à l'arrêt, comme avant.
 - L'image animée n'est pas rechargée à chaque mise à jour des capteurs : l'hélice tourne sans à-coup.

@@ -6,7 +6,7 @@
  * Style verre, thème clair/sombre automatique, éditeur visuel.
  */
 
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.2.1";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -74,7 +74,7 @@ const DEFAULTS = {
   hp_image_on: "", // groupe extérieur en marche (image animée), ex. /local/pac_marche.webp
   hp_image_off: "", // groupe extérieur à l'arrêt ; si renseignée, la PAC reste affichée à l'arrêt
   temp_min: 20, // °C : bleu
-  temp_max: 60, // °C : rouge
+  temp_max: 58, // °C : rouge (haut du ballon en fin de chauffe PAC)
 };
 /* couleur de l'eau selon sa température : bleu → violet → rouge */
 const tempColor = (t, tmin, tmax) => {
@@ -216,12 +216,14 @@ class HotWaterCard extends HTMLElement {
   /* ballon en photo, avec une jauge dont la couleur suit la température (bas → haut) */
   _tankImg(charge) {
     const c = this._config, u = this._uid;
-    const pct = charge === null ? 0 : Math.max(0, Math.min(100, charge));
-    const top = 34, bottom = 190, h = bottom - top, y = bottom - (h * pct) / 100;
+    // jauge toujours pleine : la couleur montre la température à chaque hauteur (sonde du bas, moyenne, sonde du haut)
+    const top = 34, bottom = 190, h = bottom - top, y = top;
     const tb = this._num(c.bottom_entity), ta = this._num(c.avg_entity), tt = this._num(c.top_entity);
     const lo = tb !== null ? tb : ta !== null ? ta : tt, hi = tt !== null ? tt : ta !== null ? ta : tb;
+    const mid = ta !== null ? ta : lo !== null && hi !== null ? (lo + hi) / 2 : null;
     const tmin = Number(c.temp_min), tmax = Number(c.temp_max);
-    const cLo = lo !== null ? tempColor(lo, tmin, tmax) : "var(--tk-fill)", cHi = hi !== null ? tempColor(hi, tmin, tmax) : "var(--tk-fill)";
+    const col = (t) => (t !== null ? tempColor(t, tmin, tmax) : "var(--tk-fill)");
+    const cLo = col(lo), cMid = col(mid), cHi = col(hi);
     const rt = this._num(c.router_entity);
     const resOn = rt !== null && rt > Number(c.resistor_threshold);
     const lbl = (eid, name, yy) => {
@@ -234,14 +236,13 @@ class HotWaterCard extends HTMLElement {
   <defs>
     <clipPath id="tk-c-${u}"><rect x="33" y="${top}" width="18" height="${h}" rx="9"/></clipPath>
     <linearGradient id="tk-g-${u}" x1="0" y1="${bottom}" x2="0" y2="${top}" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="${cLo}"/><stop offset="1" stop-color="${cHi}"/>
+      <stop offset="0" stop-color="${cLo}"/><stop offset=".5" stop-color="${cMid}"/><stop offset="1" stop-color="${cHi}"/>
     </linearGradient>
   </defs>
   <image href="${esc(c.tank_image)}" x="18" y="8" width="71" height="194" preserveAspectRatio="xMidYMid meet" class="tkimg"/>
   <rect x="33" y="${top}" width="18" height="${h}" rx="9" fill="rgba(20,24,40,.10)" stroke="rgba(20,24,40,.28)" stroke-width="1"/>
   <g clip-path="url(#tk-c-${u})">
     <rect x="33" y="${y}" width="18" height="${bottom - y}" fill="url(#tk-g-${u})" class="lvl"/>
-    ${pct > 0 ? `<path class="wave" d="M25 ${y} q 4.5 -2.5 9 0 t 9 0 t 9 0 t 9 0 t 9 0 V ${y + 5} H25Z" fill="${cHi}" opacity=".6"/>` : ""}
     <rect x="36" y="${top}" width="4" height="${h}" fill="#fff" opacity=".35"/>
   </g>
   ${resOn ? `<g class="elem"><title>Résistance en marche</title><path d="M35 178 h2 l2 -5 l4 10 l4 -10 l2 5 h2" fill="none" stroke="#ff6a3d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
