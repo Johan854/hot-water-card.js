@@ -6,7 +6,7 @@
  * Style verre, thème clair/sombre automatique, éditeur visuel.
  */
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.2.0";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -69,7 +69,21 @@ const DEFAULTS = {
   hp_threshold: 10, // W : au-dessus, le groupe extérieur de la PAC s'affiche
   resistor_threshold: 0, // % du routeur : au-dessus, le symbole de résistance s'affiche
   toggles: [],
+  // Images (facultatives) : remplacent les dessins
+  tank_image: "", // photo du ballon à fond transparent, ex. /local/ballon.png (une jauge colorée s'affiche dedans)
+  hp_image_on: "", // groupe extérieur en marche (image animée), ex. /local/pac_marche.webp
+  hp_image_off: "", // groupe extérieur à l'arrêt ; si renseignée, la PAC reste affichée à l'arrêt
+  temp_min: 20, // °C : bleu
+  temp_max: 60, // °C : rouge
 };
+/* couleur de l'eau selon sa température : bleu → violet → rouge */
+const tempColor = (t, tmin, tmax) => {
+  const f = Math.max(0, Math.min(1, (t - tmin) / ((tmax - tmin) || 1)));
+  const S = [[0, [47, 143, 216]], [0.5, [150, 90, 210]], [1, [228, 70, 62]]];
+  const i = f <= 0.5 ? 0 : 1, a = S[i], b = S[i + 1], k = (f - a[0]) / (b[0] - a[0]);
+  return "rgb(" + a[1].map((v, j) => Math.round(v + (b[1][j] - v) * k)).join(",") + ")";
+};
+const safeUrl = (u) => u && !/^\s*(javascript|vbscript|data:text)/i.test(String(u));
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -199,6 +213,44 @@ class HotWaterCard extends HTMLElement {
 </svg>`;
   }
 
+  /* ballon en photo, avec une jauge dont la couleur suit la température (bas → haut) */
+  _tankImg(charge) {
+    const c = this._config, u = this._uid;
+    const pct = charge === null ? 0 : Math.max(0, Math.min(100, charge));
+    const top = 34, bottom = 190, h = bottom - top, y = bottom - (h * pct) / 100;
+    const tb = this._num(c.bottom_entity), ta = this._num(c.avg_entity), tt = this._num(c.top_entity);
+    const lo = tb !== null ? tb : ta !== null ? ta : tt, hi = tt !== null ? tt : ta !== null ? ta : tb;
+    const tmin = Number(c.temp_min), tmax = Number(c.temp_max);
+    const cLo = lo !== null ? tempColor(lo, tmin, tmax) : "var(--tk-fill)", cHi = hi !== null ? tempColor(hi, tmin, tmax) : "var(--tk-fill)";
+    const rt = this._num(c.router_entity);
+    const resOn = rt !== null && rt > Number(c.resistor_threshold);
+    const lbl = (eid, name, yy) => {
+      if (!eid) return "";
+      return `<g class="tl" data-more="${esc(eid)}"><line x1="92" y1="${yy}" x2="104" y2="${yy}" stroke="var(--tk-line)" stroke-width="1"/>
+        <text x="108" y="${yy - 2}" class="tn">${esc(name)}</text><text x="108" y="${yy + 9}" class="tv">${esc(this._val(eid, "°C"))}</text></g>`;
+    };
+    return `
+<svg viewBox="0 0 190 210" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <clipPath id="tk-c-${u}"><rect x="33" y="${top}" width="18" height="${h}" rx="9"/></clipPath>
+    <linearGradient id="tk-g-${u}" x1="0" y1="${bottom}" x2="0" y2="${top}" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="${cLo}"/><stop offset="1" stop-color="${cHi}"/>
+    </linearGradient>
+  </defs>
+  <image href="${esc(c.tank_image)}" x="18" y="8" width="71" height="194" preserveAspectRatio="xMidYMid meet" class="tkimg"/>
+  <rect x="33" y="${top}" width="18" height="${h}" rx="9" fill="rgba(20,24,40,.10)" stroke="rgba(20,24,40,.28)" stroke-width="1"/>
+  <g clip-path="url(#tk-c-${u})">
+    <rect x="33" y="${y}" width="18" height="${bottom - y}" fill="url(#tk-g-${u})" class="lvl"/>
+    ${pct > 0 ? `<path class="wave" d="M25 ${y} q 4.5 -2.5 9 0 t 9 0 t 9 0 t 9 0 t 9 0 V ${y + 5} H25Z" fill="${cHi}" opacity=".6"/>` : ""}
+    <rect x="36" y="${top}" width="4" height="${h}" fill="#fff" opacity=".35"/>
+  </g>
+  ${resOn ? `<g class="elem"><title>Résistance en marche</title><path d="M35 178 h2 l2 -5 l4 10 l4 -10 l2 5 h2" fill="none" stroke="#ff6a3d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M35 178 h2 l2 -5 l4 10 l4 -10 l2 5 h2" fill="none" stroke="#ffd166" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/></g>` : ""}
+  <text x="42" y="${top - 8}" text-anchor="middle" class="pct img">${charge === null ? "—" : Math.round(charge) + "%"}</text>
+  ${lbl(c.top_entity, "Haut", top + 12)}${lbl(c.avg_entity, "Moyenne", (top + bottom) / 2 + 2)}${lbl(c.bottom_entity, "Bas", bottom - 16)}
+</svg>`;
+  }
+
   _stat(icon, label, eid, extra = "") {
     if (!eid) return "";
     return `<button class="stat ${extra}" data-more="${esc(eid)}"><ha-icon icon="${icon}"></ha-icon><span class="sl">${label}</span><span class="sv">${esc(this._val(eid))}</span></button>`;
@@ -216,7 +268,12 @@ class HotWaterCard extends HTMLElement {
     // Groupe extérieur (PAC) : visible quand la puissance dépasse le seuil
     const hpW = this._num(c.hp_entity);
     const hpOn = hpW !== null && hpW > Number(c.hp_threshold);
-    const outdoor = hpOn ? `
+    const hpImg = hpOn ? (safeUrl(c.hp_image_on) ? c.hp_image_on : "") : (safeUrl(c.hp_image_off) ? c.hp_image_off : "");
+    const outdoor = hpImg ? `
+      <button class="odu ${hpOn ? "" : "stop"}" data-more="${esc(c.hp_entity)}" title="${hpOn ? "PAC en marche" : "PAC à l'arrêt"}">
+        <img class="oduimg" src="${esc(hpImg)}" data-src="${esc(hpImg)}" alt="">
+        <span class="sl"><ha-icon icon="mdi:heat-pump"></ha-icon>${hpOn ? "PAC en marche" : "PAC à l'arrêt"}</span><span class="sv">${esc(this._val(c.hp_entity, "W"))}</span>
+      </button>` : hpOn ? `
       <button class="odu" data-more="${esc(c.hp_entity)}" title="PAC en marche">
         <svg viewBox="0 0 120 84" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <rect x="4" y="6" width="112" height="66" rx="8" fill="var(--tk-empty)" stroke="var(--tk-line)" stroke-width="1.6"/>
@@ -322,6 +379,9 @@ class HotWaterCard extends HTMLElement {
         .sv small { font-weight:500; color:var(--tk-muted); }
         .odu { display:flex; flex-direction:column; gap:.2em; padding:.5em .6em; border-radius:.9em; background:var(--tk-fillc); border:1px solid var(--tk-acc); }
         .odu svg { width:100%; max-width:130px; align-self:center; height:auto; }
+        .odu img { width:100%; max-width:150px; align-self:center; height:auto; display:block; }
+        .odu.stop { border-color:var(--tk-fill-b); } .odu.stop img { opacity:.85; }
+        .pct.img { font-size:14px; fill:#1c2030; stroke:rgba(255,255,255,.85); }
         .odu .sl ha-icon { display:inline-block; }
         .spin { animation:tk-spin 1s linear infinite; } @keyframes tk-spin { to { transform:rotate(360deg); } }
         .elem { animation:tk-elem 1.2s ease-in-out infinite; filter:drop-shadow(0 0 3px #ff6a3d); } @keyframes tk-elem { 50% { opacity:.45; } }
@@ -349,7 +409,7 @@ class HotWaterCard extends HTMLElement {
       <ha-card class="${dark ? "dark" : "light"}" style="${gvStyle(this._config, dark)}">
         <div class="head"><b><ha-icon icon="mdi:water-boiler"></ha-icon>${esc(c.title)}</b><span class="badge">${esc(stateTxt)}</span></div>
         <div class="panel">
-          <div>${this._tank(charge, tone)}</div>
+          <div>${safeUrl(c.tank_image) ? this._tankImg(charge) : this._tank(charge, tone)}</div>
           <div class="side">${outdoor}${autonomy}</div>
         </div>
         ${energyBar}
@@ -359,6 +419,10 @@ class HotWaterCard extends HTMLElement {
       </ha-card>`;
 
     const root = this.shadowRoot;
+    // l'image animée du groupe extérieur est conservée entre deux mises à jour (pas de saccade)
+    const ni = root.querySelector("img.oduimg");
+    if (ni && this._oduImg && this._oduImg.dataset.src === ni.dataset.src) ni.replaceWith(this._oduImg);
+    else this._oduImg = ni || null;
     root.querySelectorAll("[data-more]").forEach((el) => el.addEventListener("click", () => this._more(el.dataset.more)));
     root.querySelectorAll("[data-t]").forEach((el) => {
       const t = c.toggles[Number(el.dataset.t)];
@@ -387,6 +451,8 @@ const LABELS = { ...GV_LABELS,
   cop_good: "COP « bon » à partir de", cop_ok: "COP « correct » à partir de",
   router_entity: "Utilisation du routeur / triac (%)", hp_threshold: "Afficher le groupe extérieur au-dessus de (W)", resistor_threshold: "Afficher la résistance au-dessus de (%)", grid_entity: "Puissance réseau", pv_entity: "Puissance PV", hp_entity: "Puissance PAC", resistor_entity: "Puissance résistance",
   entity: "Entité", name: "Nom (facultatif)", icon: "Icône",
+  tank_image: "Photo du ballon (fond transparent, ex. /local/ballon.png)", hp_image_on: "Groupe extérieur en marche (ex. /local/pac_marche.webp)", hp_image_off: "Groupe extérieur à l'arrêt (facultatif : la PAC reste alors affichée)",
+  temp_min: "Jauge bleue à (°C)", temp_max: "Jauge rouge à (°C)",
 };
 const ent = (name, domain) => ({ name, selector: { entity: domain ? { domain } : {} } });
 const num = (name, min = 0, max = 100, step = 1) => ({ name, selector: { number: { min, max, step, mode: "box" } } });
@@ -399,6 +465,10 @@ const MAIN_SCHEMA = [
     ent("top_entity", "sensor"), ent("avg_entity", "sensor"), ent("bottom_entity", "sensor"),
     ent("autonomy_entity", "sensor"), ent("volume_entity", "sensor"),
     { type: "grid", name: "", schema: [num("charge_warn"), num("charge_alert")] },
+  ] },
+  { type: "expandable", title: "Images", name: "", schema: [
+    { name: "tank_image", selector: { text: {} } }, { name: "hp_image_on", selector: { text: {} } }, { name: "hp_image_off", selector: { text: {} } },
+    { type: "grid", name: "", schema: [num("temp_min", 0, 90, 1), num("temp_max", 0, 95, 1)] },
   ] },
   { type: "expandable", title: "Dernier cycle", name: "", schema: [
     ent("cop_entity"), ent("thermal_entity"), ent("electric_entity"), ent("duration_entity"),

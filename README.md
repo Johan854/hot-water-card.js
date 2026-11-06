@@ -70,3 +70,19 @@ Sans cette ligne, `nuance: theme` garde les couleurs d'origine de la carte.
 ## Historique des versions
 
 - **1.1.0** : nuance de couleur au choix (8 nuances, couleur personnalisée, intensité, ou nuance commune via `carte-nuance` dans le thème).
+
+## Photos du ballon et du groupe extérieur (v1.2.0)
+
+Remplace les dessins par tes propres images (fond transparent conseillé), à placer dans `/config/www/` :
+
+```yaml
+tank_image: /local/ballon.png          # ballon : une jauge s'affiche dedans
+hp_image_on: /local/pac_marche.webp    # groupe extérieur en marche (ventilateur animé)
+hp_image_off: /local/pac_arret.png     # facultatif : la PAC reste affichée à l'arrêt
+temp_min: 20                           # jauge bleue
+temp_max: 60                           # jauge rouge
+```
+
+- La hauteur de la jauge suit la charge (`charge_entity`), sa couleur suit la température de l'eau : bleu en bas de plage, rouge en haut, avec un dégradé de la sonde du bas vers celle du haut (stratification).
+- Le groupe extérieur apparaît quand la PAC dépasse `hp_threshold` (W). Sans `hp_image_off`, il est masqué à l'arrêt, comme avant.
+- L'image animée n'est pas rechargée à chaque mise à jour des capteurs : l'hélice tourne sans à-coup.
