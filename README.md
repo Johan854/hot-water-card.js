@@ -43,6 +43,7 @@ toggles:
 | `router_entity` + puissances | Routeur solaire : utilisation en % et tuiles Réseau / PV / PAC / Résistance |
 | `resistor_threshold` (0) | Quand `router_entity` (triac) dépasse ce % : une résistance lumineuse apparaît dans le ballon |
 | `hp_threshold` (10) | Quand `hp_entity` dépasse cette puissance (W) : le groupe extérieur de la PAC apparaît, ventilateur animé |
+| `router_guide_url` | Lien vers le guide du routeur (ex. `/local/routeur-solaire.pdf`, fichier dans `/config/www/`) : un bouton « ? » apparaît à droite du titre « Routeur solaire » et ouvre le guide |
 | `toggles[]` | Commandes : un appui bascule, un appui long ouvre les détails |
 
 Les graphiques d'historique restent à ajouter avec la carte native `history-graph`. Licence MIT.

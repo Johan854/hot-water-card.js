@@ -6,7 +6,7 @@
  * Style verre, thème clair/sombre automatique, éditeur visuel.
  */
 
-const CARD_VERSION = "1.2.1";
+const CARD_VERSION = "1.3.0";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -68,6 +68,7 @@ const DEFAULTS = {
   resistor_entity: "",
   hp_threshold: 10, // W : au-dessus, le groupe extérieur de la PAC s'affiche
   resistor_threshold: 0, // % du routeur : au-dessus, le symbole de résistance s'affiche
+  router_guide_url: "", // guide du routeur (PDF), ex. /local/routeur-solaire.pdf : bouton « ? » dans la section
   toggles: [],
   // Images (facultatives) : remplacent les dessins
   tank_image: "", // photo du ballon à fond transparent, ex. /local/ballon.png (une jauge colorée s'affiche dedans)
@@ -321,7 +322,7 @@ class HotWaterCard extends HTMLElement {
     const routerHas = c.router_entity || c.grid_entity || c.pv_entity || c.hp_entity || c.resistor_entity;
     const pw = (eid, label, icon) => eid ? `<button class="tile" data-more="${esc(eid)}"><span class="sl"><ha-icon icon="${icon}"></ha-icon>${label}</span><span class="sv">${esc(this._val(eid, "W"))}</span></button>` : "";
     const solar = routerHas ? `
-      <div class="sec"><div class="st"><ha-icon icon="mdi:solar-power-variant"></ha-icon>Routeur solaire</div>
+      <div class="sec"><div class="st"><ha-icon icon="mdi:solar-power-variant"></ha-icon>Routeur solaire${c.router_guide_url ? `<button class="help" data-url="${esc(c.router_guide_url)}" title="Guide du routeur" aria-label="Guide du routeur"><ha-icon icon="mdi:help-circle-outline"></ha-icon></button>` : ""}</div>
         ${c.router_entity ? `<button class="en" data-more="${esc(c.router_entity)}"><span class="row"><span class="sl">Utilisation du routeur</span><span class="sv">${router === null ? "—" : Math.round(router) + " %"}</span></span>
           <i class="bar sun"><u style="width:${router === null ? 0 : Math.max(0, Math.min(100, router))}%"></u></i></button>` : ""}
         <div class="tiles">
@@ -397,6 +398,8 @@ class HotWaterCard extends HTMLElement {
         .bar.sun u { background:var(--tk-sun); }
         .sec { display:flex; flex-direction:column; gap:8px; }
         .st { display:flex; align-items:center; gap:.5em; font-size:.8em; font-weight:650; color:var(--tk-muted); text-transform:uppercase; letter-spacing:.07em; }
+        .help { margin-left:auto; display:flex; align-items:center; justify-content:center; width:2em; height:2em; border-radius:50%; color:var(--tk-sun); background:var(--tk-fillc); border:1px solid var(--tk-glass-b); }
+        .help ha-icon { --mdc-icon-size:1.5em; }
         .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(5.2em,1fr)); gap:8px; }
         .tile { display:flex; flex-direction:column; gap:.3em; padding:.6em .75em; border-radius:1em; background:var(--tk-glass); border:1px solid var(--tk-glass-b); min-width:0; }
         .tile.ok .sv { color:var(--tk-ok); } .tile.warn .sv { color:var(--tk-warn); } .tile.err .sv { color:var(--tk-err); }
@@ -425,6 +428,7 @@ class HotWaterCard extends HTMLElement {
     if (ni && this._oduImg && this._oduImg.dataset.src === ni.dataset.src) ni.replaceWith(this._oduImg);
     else this._oduImg = ni || null;
     root.querySelectorAll("[data-more]").forEach((el) => el.addEventListener("click", () => this._more(el.dataset.more)));
+    root.querySelectorAll("[data-url]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); window.open(el.dataset.url, "_blank"); }));
     root.querySelectorAll("[data-t]").forEach((el) => {
       const t = c.toggles[Number(el.dataset.t)];
       let timer, held = false;
@@ -450,7 +454,7 @@ const LABELS = { ...GV_LABELS,
   charge_warn: "Charge « moyenne » en dessous de (%)", charge_alert: "Charge « faible » en dessous de (%)",
   cop_entity: "COP du dernier cycle", thermal_entity: "Énergie thermique du cycle", electric_entity: "Énergie électrique du cycle", duration_entity: "Durée du cycle",
   cop_good: "COP « bon » à partir de", cop_ok: "COP « correct » à partir de",
-  router_entity: "Utilisation du routeur / triac (%)", hp_threshold: "Afficher le groupe extérieur au-dessus de (W)", resistor_threshold: "Afficher la résistance au-dessus de (%)", grid_entity: "Puissance réseau", pv_entity: "Puissance PV", hp_entity: "Puissance PAC", resistor_entity: "Puissance résistance",
+  router_entity: "Utilisation du routeur / triac (%)", hp_threshold: "Afficher le groupe extérieur au-dessus de (W)", resistor_threshold: "Afficher la résistance au-dessus de (%)", router_guide_url: "Guide du routeur (PDF, ex. /local/routeur-solaire.pdf)", grid_entity: "Puissance réseau", pv_entity: "Puissance PV", hp_entity: "Puissance PAC", resistor_entity: "Puissance résistance",
   entity: "Entité", name: "Nom (facultatif)", icon: "Icône",
   tank_image: "Photo du ballon (fond transparent, ex. /local/ballon.png)", hp_image_on: "Groupe extérieur en marche (ex. /local/pac_marche.webp)", hp_image_off: "Groupe extérieur à l'arrêt (facultatif : la PAC reste alors affichée)",
   temp_min: "Jauge bleue à (°C)", temp_max: "Jauge rouge à (°C)",
@@ -478,6 +482,7 @@ const MAIN_SCHEMA = [
   { type: "expandable", title: "Routeur solaire", name: "", schema: [
     ent("router_entity", "sensor"), ent("grid_entity", "sensor"), ent("pv_entity", "sensor"), ent("hp_entity", "sensor"), ent("resistor_entity", "sensor"),
     { type: "grid", name: "", schema: [num("hp_threshold", 0, 5000, 1), num("resistor_threshold", 0, 100, 1)] },
+    { name: "router_guide_url", selector: { text: {} } },
   ] },
 ];
 const TOGGLE_SCHEMA = [
